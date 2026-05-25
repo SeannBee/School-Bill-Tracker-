@@ -1,73 +1,101 @@
-document.addEventListener('DOMContentLoaded', function() {
-    const currentStudent = { id: "temp", name: "Student" };
-    document.getElementById('studentName').textContent = currentStudent.name || '';
-    
-    function renderBills() {
-        const tableBody = document.querySelector('tbody');
-        tableBody.innerHTML = '';
+document.addEventListener('DOMContentLoaded', async function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const studentId = urlParams.get('studentId');
 
-        const bills = [];
-        const studentBills = bills.filter(bill => bill.forAllStudents === true);
+    if (!studentId) {
+        alert("Critical Error: No student ID provided in the URL.");
+        return;
+    }
 
-        // Get student-specific statuses
-        const studentStatuses = {};
-        let statusesChanged = false;
-       
+    const tableBody = document.querySelector('tbody');
+    const studentNameElement = document.getElementById('studentName');
 
-        studentBills.forEach((bill) => {
-            // Skip bills with invalid amount
-            if (typeof bill.amount !== 'number' || isNaN(bill.amount)) return;
+    async function loadStudentProfile() {
+        try {
+            const response = await fetch(`http://localhost:5000/api/students/${studentId}`);
+            if (response.ok) {
+                const student = await response.json();
+                if (studentNameElement) {
+                    studentNameElement.textContent = student.Name || student.name || 'Unknown Student';
+                }
+            }
+        } catch (error) {
+            console.error("Could not load student profile:", error);
+        }
+    }
 
-            const row = document.createElement('tr');
-            let status = 'pending';
+    async function loadBills() {
+        try {
+            const response = await fetch(`http://localhost:5000/api/bills/${studentId}`);
+            if (!response.ok) throw new Error('Backend rejected the request.');
 
-            // Check if due date is passed and status is not paid
-            const dueDate = new Date(bill.dueDate);
-            const now = new Date();
-            if (status !== 'paid' && dueDate <= now) {
-                status = 'overdue';
-                // backend will handle overdue updates
-                statusesChanged = true;
+            const bills = await response.json();
+            tableBody.innerHTML = '';
+
+            if (bills.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="4" class="text-center">No bills found for this student.</td></tr>';
+                return;
             }
 
-            row.innerHTML = `
-                <td>${bill.name}</td>
-                <td>₱${bill.amount.toFixed(2)}</td>
-                <td>${new Date(bill.dueDate).toLocaleDateString()}</td>
-                <td>
-                    <select class="form-select status-select" data-bill-id="${bill.billId}">
-                        <option value="paid" ${status === 'paid' ? 'selected' : ''}>Paid</option>
-                        <option value="pending" ${status === 'pending' ? 'selected' : ''}>Pending</option>
-                        <option value="overdue" ${status === 'overdue' ? 'selected' : ''}>Overdue</option>
-                    </select>
-                </td>
-            `;
-            tableBody.appendChild(row);
-        });
+            bills.forEach((bill) => {
+                const row = document.createElement('tr');
+                const amount = parseFloat(bill.amountDue || 0);
+                const status = bill.status || 'pending';
+                const dateString = bill.dueDate ? new Date(bill.dueDate).toLocaleDateString() : 'N/A';
+                const name = bill.billName || 'Unnamed Bill';
 
-        // Save updated statuses if any were changed
-       
-
-        // Add event listeners to status selects
-        document.querySelectorAll('.status-select').forEach(select => {
-            select.addEventListener('change', function() {
-                const billId = this.dataset.billId;
-                // value will be sent to backend later
-                const newStatus = this.value;
-                updateSelectStyle(this);
+                row.innerHTML = `
+                    <td>${name}</td>
+                    <td>₱${amount.toFixed(2)}</td>
+                    <td>${dateString}</td>
+                    <td>
+                        <select class="form-select status-select status-${status}" 
+                                data-bill-id="${bill._id}" 
+                                data-global-id="${bill.globalBillId}"
+                                data-amount="${amount}">
+                            <option value="paid" ${status === 'paid' ? 'selected' : ''}>Paid</option>
+                            <option value="pending" ${status === 'pending' ? 'selected' : ''}>Pending</option>
+                            <option value="overdue" ${status === 'overdue' ? 'selected' : ''}>Overdue</option>
+                        </select>
+                    </td>
+                `;
+                tableBody.appendChild(row);
             });
-            updateSelectStyle(select);
+
+            attachDropdownListeners();
+        } catch (error) {
+            console.error("Failed to fetch student bills:", error);
+        }
+    }
+
+    function attachDropdownListeners() {
+        document.querySelectorAll('.status-select').forEach(select => {
+            select.addEventListener('change', async function() {
+                const billId = this.dataset.billId;
+                const globalBillId = this.dataset.globalId;
+                const amountDue = this.dataset.amount;
+                const newStatus = this.value;
+
+                // Visually update the class immediately for UI feedback
+                this.className = `form-select status-select status-${newStatus}`;
+
+                try {
+                    const response = await fetch(`http://localhost:5000/api/bills/${billId}/status`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ status: newStatus, globalBillId, amountDue })
+                    });
+
+                    if (!response.ok) throw new Error("Failed to save to database");
+                    console.log(`Successfully updated bill ${billId} to ${newStatus}`);
+                } catch (error) {
+                    console.error("Network transaction failed:", error);
+                    alert("Failed to update status on the server. Refresh the page.");
+                }
+            });
         });
     }
 
-    function updateSelectStyle(select) {
-        select.className = 'form-select status-select';
-        select.classList.add(`status-${select.value}`);
-    }
-
-    renderBills();
-    window.addEventListener('storage', renderBills);
-
-    // backend will handle student list later
-    // Use studentList to render the table  
+    await loadStudentProfile();
+    await loadBills();
 });

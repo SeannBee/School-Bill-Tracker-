@@ -69,95 +69,113 @@
                 <button class="btn btn-danger w-100" onclick="deleteBill()">
                     <i class="fas fa-trash me-1"></i> Remove Bill
                 </button>
+                <button class="btn btn-warning ms-2" id="notifyPendingBtn">Notify Unpaid Students</button>
             </div>
 
     </div>
 
-    <!-- Add Bill Modal -->
-    <div class="modal fade" id="addBillModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Add New Bill</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <form id="newBillForm">
-                        <div class="mb-3">
-                            <label for="billName" class="form-label">Bill Name</label>
-                            <input type="text" class="form-control" id="billName" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="billAmount" class="form-label">Amount</label>
-                            <input type="number" class="form-control" id="billAmount" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="dueDate" class="form-label">Due Date</label>
-                            <input type="date" class="form-control" id="dueDate" required>
-                        </div>
-                    </form>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="button" class="btn btn-primary" id="saveBillBtn">Add Bill</button>
-                </div>
+<div class="modal fade" id="addBillModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header" style="background:#6E1F1F; color:white;">
+                <h5 class="modal-title">Add New Bill</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-        </div>
-    </div>
-
-    <!-- Edit Bill Modal -->
-    <div class="modal fade" id="editBillModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Edit Bill</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <form id="editBillForm">
-                        <input type="hidden" id="editBillIndex">
-                        <div class="mb-3">
-                            <label for="editBillName" class="form-label">Bill Name</label>
-                            <input type="text" class="form-control" id="editBillName" required>
+            <div class="modal-body">
+                <form id="newBillForm">
+                    <div class="mb-3">
+                        <label for="billName" class="form-label fw-bold">Bill Name</label>
+                        <input type="text" class="form-control" id="billName" placeholder="e.g., CPE Laboratory Fee" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="billAmount" class="form-label fw-bold">Amount</label>
+                        <div class="input-group">
+                            <span class="input-group-text">₱</span>
+                            <input type="number" class="form-control" id="billAmount" step="0.01" placeholder="0.00" required>
                         </div>
-                        <div class="mb-3">
-                            <label for="editBillAmount" class="form-label">Amount</label>
-                            <input type="number" class="form-control" id="editBillAmount" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="editDueDate" class="form-label">Due Date</label>
-                            <input type="date" class="form-control" id="editDueDate" required>
-                        </div>
-                    </form>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="button" class="btn btn-primary" id="saveEditBillBtn">Save Changes</button>
-                </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="dueDate" class="form-label fw-bold">Due Date</label>
+                        <input type="date" class="form-control" id="dueDate" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="targetYear" class="form-label fw-bold">Target Year Level</label>
+                        <select class="form-select" id="targetYear" required>
+                            <option value="Everyone" selected>Everyone (All Students)</option>
+                            <option value="2nd Year">2nd Year Only</option>
+                            <option value="3rd Year">3rd Year Only</option>
+                            <option value="4th Year">4th Year Only</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn text-white" style="background:#6E1F1F;" id="saveBillBtn">Add Bill</button>
             </div>
         </div>
     </div>
+</div>
 
-    <!-- Delete Bill Modal -->
+<div class="modal fade" id="editBillModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header" style="background:#6E1F1F; color:white;">
+                <h5 class="modal-title">Edit Bill</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editBillForm">
+                    <input type="hidden" id="editBillIndex">
+                    <div class="mb-3">
+                        <label for="editBillName" class="form-label fw-bold">Bill Name</label>
+                        <input type="text" class="form-control" id="editBillName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editBillAmount" class="form-label fw-bold">Amount</label>
+                        <div class="input-group">
+                            <span class="input-group-text">₱</span>
+                            <input type="number" class="form-control" id="editBillAmount" step="0.01" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editDueDate" class="form-label fw-bold">Due Date</label>
+                        <input type="date" class="form-control" id="editDueDate" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editTargetYear" class="form-label fw-bold">Target Year Level</label>
+                        <select class="form-select" id="editTargetYear" required>
+                            <option value="Everyone">Everyone (All Students)</option>
+                            <option value="2nd Year">2nd Year Only</option>
+                            <option value="3rd Year">3rd Year Only</option>
+                            <option value="4th Year">4th Year Only</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn text-white" style="background:#6E1F1F;" id="saveEditBillBtn">Save Changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="deleteBillModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-
             <div class="modal-header" style="background:#6E1F1F; color:white;">
                 <h5 class="modal-title">Delete Bill</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-
             <div class="modal-body">
-                <p class="mb-0">Are you sure you want to delete this bill?</p>
+                <p class="mb-0">Are you sure you want to delete this bill? This will recall individual balances from assigned student profiles.</p>
                 <input type="hidden" id="deleteBillIndex">
             </div>
-
             <div class="modal-footer">
                 <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button class="btn btn-danger" id="confirmDeleteBtn">Delete</button>
             </div>
-
         </div>
     </div>
 </div>

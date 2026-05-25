@@ -2,136 +2,228 @@ document.addEventListener('DOMContentLoaded', function() {
     const billsTableBody = document.getElementById('billsTableBody');
     const saveBillBtn = document.getElementById('saveBillBtn');
     const saveEditBillBtn = document.getElementById('saveEditBillBtn');
-    
+    const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+
     let selectedRow = null;
+    let selectedBillId = null;
+    let allMasterBills = [];
 
-    function loadBills() {
-        const studentCount = 0;
-        const bills = [];
-        billsTableBody.innerHTML = '';
-        
-        bills.forEach((bill, index) => {
-            // Skip bills with invalid amount
-            if (typeof bill.amount !== 'number' || isNaN(bill.amount)) return;
+    async function loadBills() {
+        try {
+            const response = await fetch('http://localhost:5000/api/manage-bills');
+            if (!response.ok) throw new Error('Failed to fetch master bills.');
 
-            const row = document.createElement('tr');
-            const expectedAmount = bill.amount * studentCount;
+            allMasterBills = await response.json();
+            billsTableBody.innerHTML = '';
 
-            let accumulatedAmount = 0;
+            allMasterBills.forEach((bill) => {
+                const row = document.createElement('tr');
+                row.dataset.id = bill._id;
 
-            const students = [];
+                const name = bill.billName || 'Unnamed Bill';
+                const amount = parseFloat(bill.amountDue || 0);
+                const expected = parseFloat(bill.expectedAmount || 0);
+                const accumulated = parseFloat(bill.accumulatedAmount || 0);
+                const dateString = bill.dueDate ? new Date(bill.dueDate).toLocaleDateString() : 'N/A';
 
-            students.forEach(student => {
-                const statuses = {};
+                row.innerHTML = `
+                    <td>${name}</td>
+                    <td>₱${amount.toFixed(2)}</td>
+                    <td>${dateString}</td>
+                    <td>₱${expected.toFixed(2)}</td>
+                    <td>₱${accumulated.toFixed(2)}</td>
+                `;
 
-                if (statuses[bill.billId] === 'paid') {
-                    accumulatedAmount += bill.amount;
-                }
+                row.onclick = () => selectRow(row, bill._id);
+                billsTableBody.appendChild(row);
             });
-
-            row.innerHTML = `
-                <td>${bill.name}</td>
-                <td>₱${bill.amount.toFixed(2)}</td>
-                <td>${new Date(bill.dueDate).toLocaleDateString()}</td>
-                <td>₱${expectedAmount.toFixed(2)}</td>
-                <td>₱${accumulatedAmount.toFixed(2)}</td>
-            `;
-            row.onclick = () => selectRow(row, index);
-            billsTableBody.appendChild(row);
-        });
-    }
-    function selectRow(row, index) {
-    // remove previous selection
-    if (selectedRow) {
-        selectedRow.classList.remove('selected-row');
+        } catch (error) {
+            console.error("Error updating dashboard view:", error);
+        }
     }
 
-    // set new selection
-    row.classList.add('selected-row');
-    selectedRow = row;
-    selectedRow.dataset.index = index;
-}
-
-    window.editBill = function() {
-        if (!selectedRow) {
-            alert('Please select a bill to edit');
-            return;
+    function selectRow(row, billId) {
+        if (selectedRow) {
+            selectedRow.classList.remove('selected-row');
         }
+        row.classList.add('selected-row');
+        selectedRow = row;
+        selectedBillId = billId;
+    }
 
-        const bills = [];
-        const index = parseInt(selectedRow.dataset.index);
-        const bill = bills[index];
-
-        document.getElementById('editBillIndex').value = index;
-        document.getElementById('editBillName').value = bill.name;
-        document.getElementById('editBillAmount').value = bill.amount;
-        document.getElementById('editDueDate').value = bill.dueDate;
-
-        new bootstrap.Modal(document.getElementById('editBillModal')).show();
-    };
-
-    window.deleteBill = function() {
-        if (!selectedRow) {
-            alert('Please select a bill to delete');
-            return;
-        }
-
-        if (confirm('Are you sure you want to delete this bill?')) {
-            const bills = [];
-            const index = parseInt(selectedRow.dataset.index);
-            bills.splice(index, 1);
-            
-            loadBills();
-            selectedRow = null;
-        }
-    };
-
-    saveBillBtn.addEventListener('click', function() {
+    saveBillBtn.addEventListener('click', async function(event) {
+        event.preventDefault();
         const billName = document.getElementById('billName').value.trim();
         const billAmount = parseFloat(document.getElementById('billAmount').value);
         const dueDate = document.getElementById('dueDate').value;
+        const targetYearElem = document.getElementById('targetYear');
+        const targetYear = targetYearElem ? targetYearElem.value : "Everyone";
 
         if (!billName || isNaN(billAmount) || !dueDate) {
             alert('Please fill in all fields with valid values.');
             return;
         }
 
-        const bills = [];
-        bills.push({
-            name: billName,
-            amount: billAmount,
-            dueDate: dueDate,
-            forAllStudents: true,
-            billId: Date.now()
-        });
+        try {
+            const response = await fetch('http://localhost:5000/api/manage-bills', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: billName, amount: billAmount, dueDate: dueDate, targetYear: targetYear })
+            });
 
-        
-        bootstrap.Modal.getInstance(document.getElementById('addBillModal')).hide();
-        document.getElementById('newBillForm').reset();
-        loadBills();
+            if (!response.ok) throw new Error('Backend rejection.');
+
+            const modalElem = document.getElementById('addBillModal');
+            if (modalElem) {
+                const modalInstance = bootstrap.Modal.getInstance(modalElem) || new bootstrap.Modal(modalElem);
+                modalInstance.hide();
+            }
+            document.getElementById('newBillForm').reset();
+
+            document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
+
+            await loadBills();
+            selectedRow = null;
+            selectedBillId = null;
+        } catch (error) {
+            alert("Could not save bill.");
+        }
     });
 
-    saveEditBillBtn.addEventListener('click', function() {
-        const index = parseInt(document.getElementById('editBillIndex').value);
-        const bills = [];
-        const originalBill = bills[index];
+    window.editBill = function() {
+        if (!selectedBillId) {
+            alert('Please click on a bill in the table to select it first.');
+            return;
+        }
 
-        bills[index] = {
-            name: document.getElementById('editBillName').value,
-            amount: parseFloat(document.getElementById('editBillAmount').value),
-            dueDate: document.getElementById('editDueDate').value,
-            // Preserve these properties:
-            forAllStudents: originalBill.forAllStudents,
-            billId: originalBill.billId,
-            status: originalBill.status || 'pending'
-        };
+        const bill = allMasterBills.find(b => b._id === selectedBillId);
+        if (!bill) return;
 
-        
-        bootstrap.Modal.getInstance(document.getElementById('editBillModal')).hide();
-        loadBills();
-        selectedRow = null;
+        document.getElementById('editBillName').value = bill.billName || '';
+        document.getElementById('editBillAmount').value = bill.amountDue || '';
+
+        let dDate = bill.dueDate || '';
+        if (dDate.includes('T')) dDate = dDate.split('T')[0];
+        document.getElementById('editDueDate').value = dDate;
+
+        const targetYearElem = document.getElementById('editTargetYear');
+        if (targetYearElem) targetYearElem.value = bill.targetYear || 'Everyone';
+
+        new bootstrap.Modal(document.getElementById('editBillModal')).show();
+    };
+
+    saveEditBillBtn.addEventListener('click', async function() {
+        if (!selectedBillId) return;
+
+        const name = document.getElementById('editBillName').value.trim();
+        const amount = parseFloat(document.getElementById('editBillAmount').value);
+        const dueDate = document.getElementById('editDueDate').value;
+        const targetYearElem = document.getElementById('editTargetYear');
+        const targetYear = targetYearElem ? targetYearElem.value : "Everyone";
+
+        try {
+            const response = await fetch(`http://localhost:5000/api/manage-bills/${selectedBillId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, amount, dueDate, targetYear })
+            });
+
+            if (!response.ok) throw new Error("Failed to update database.");
+
+            const editModalElem = document.getElementById('editBillModal');
+            if (editModalElem) {
+                const modalInstance = bootstrap.Modal.getInstance(editModalElem) || new bootstrap.Modal(editModalElem);
+                modalInstance.hide();
+            }
+
+            document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
+
+            await loadBills();
+            selectedRow = null;
+            selectedBillId = null;
+        } catch (error) {
+            console.error(error);
+            alert("Failed to save changes.");
+        }
     });
 
-    // Initial load
+    window.deleteBill = function() {
+        if (!selectedBillId) {
+            alert('Please click on a bill in the table to select it first.');
+            return;
+        }
+        new bootstrap.Modal(document.getElementById('deleteBillModal')).show();
+    };
+
+    confirmDeleteBtn.addEventListener('click', async function() {
+        if (!selectedBillId) return;
+
+        try {
+            const response = await fetch(`http://localhost:5000/api/manage-bills/${selectedBillId}`, {
+                method: 'DELETE'
+            });
+
+            if (!response.ok) throw new Error("Failed to delete from database.");
+
+            const deleteModalElem = document.getElementById('deleteBillModal');
+            if (deleteModalElem) {
+                const modalInstance = bootstrap.Modal.getInstance(deleteModalElem) || new bootstrap.Modal(deleteModalElem);
+                modalInstance.hide();
+            }
+
+            document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
+
+            await loadBills();
+            selectedRow = null;
+            selectedBillId = null;
+        } catch (error) {
+            console.error(error);
+            alert("Failed to delete bill.");
+        }
+    });
+
+    const notifyPendingBtn = document.getElementById('notifyPendingBtn');
+if (notifyPendingBtn) {
+    notifyPendingBtn.addEventListener('click', async function() {
+        if (!selectedBillId) {
+            alert('Select a bill from the table first.');
+            return;
+        }
+
+        if (!confirm('Are you absolutely sure? This is going to blast a live email to every single student who hasn\'t paid.')) {
+            return;
+        }
+
+        const originalText = notifyPendingBtn.textContent;
+        notifyPendingBtn.textContent = 'Dispatching...';
+        notifyPendingBtn.disabled = true;
+
+        try {
+            const response = await fetch(`http://localhost:5000/api/notify-pending/${selectedBillId}`, {
+                method: 'POST'
+            });
+
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'The dispatcher jammed.');
+
+            alert(data.message);
+        } catch (error) {
+            console.error("[DISPATCHER UI ERROR]:", error);
+            alert(error.message);
+        } finally {
+            notifyPendingBtn.textContent = originalText;
+            notifyPendingBtn.disabled = false;
+        }
+    });
+}
     loadBills();
 });
